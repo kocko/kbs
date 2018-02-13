@@ -72,7 +72,6 @@
 ;===== initial-facts
 
 (deffacts initial 
-  (proceed)
   (ferry
     (type catamaran)
     (from dover)
@@ -176,7 +175,9 @@
 (defrule check-animals "Animals: yes/no"
     =>
     (if (yes-or-no-p "Do you bring animals with you? (yes/no)") then
-        (assert (animals yes)))
+        (assert (animals yes))
+	else 
+		(assert (animals no)))
     (assert (checked animals)))
 
 (defrule check-max-price "Maximum price"
@@ -190,40 +191,89 @@
     =>
     (bind ?response (ask-question "Do you want the cheapest or the earliest ferry we have?" cheapest c earliest e))
     (if (or (eq ?response c) (eq ?response cheapest)) then
-        (assert (cheapest))
+        (assert (c-o-r cheapest))
     else
-       (assert (earliest)))
+       (assert (c-o-r earliest)))
     (assert (checked cheapest-or-earliest)))
 	
 (defrule check-room-need "Room needed: yes/no"
     =>
     (if (yes-or-no-p "Do you need a room on the ferry? (yes/no)") then
-        (assert (room-needed)))
+        (assert (room-needed yes))
+	else
+		(assert (room-needed no)))
     (assert (checked room-needed)))
 	
 (defrule proceed-with-another-reservation "Proceed: yes/no"
 	(declare (salience -1))
   ?from <- (from ?)
   ?checked-from <- (checked from)
+
   ?to <- (to ?)
   ?checked-to <- (checked to)
+  
+  ?after <- (after ?)
+  ?checked-after <- (checked after)
+  
+  ?before <- (before ?)
+  ?checked-before <- (checked before)
+  
+  ?adults <- (adults ?)
+  ?checked-adults <- (checked adults)
+  
+  ?children <- (children ?)
+  ?checked-children <- (checked children)
+  
+  ?vehicle <- (vehicle ?)
+  ?checked-vehicle <- (checked vehicle)
+  
+  ?animals <- (animals ?)
+  ?checked-animals <- (checked animals)
+  
+  ?max-price <- (max-price ?)
+  ?checked-max-price <- (checked max-price)
+  
+  ?cheapest-or-earliest <- (c-o-r ?)
+  ?checked-cheapest-or-earliest <- (checked cheapest-or-earliest)
+  
+  ?room-needed <- (room-needed ?)
+  ?checked-room-needed <- (checked room-needed)
 	=>
 	(if (yes-or-no-p "Do you want to proceed? (yes/no)") then
     (retract ?from)
     (retract ?checked-from)
     (retract ?to)
     (retract ?checked-to)
-		(refresh check-from)
-		(refresh check-to)
-		(refresh check-deparature-not-after)
-		(refresh check-deparature-not-before)
-		(refresh check-adults)
-		(refresh check-children)
-		(refresh check-vehicle-type)
-		(refresh check-animals)
-		(refresh check-cheapest-or-earliest)
-		(refresh check-max-price)
-		(refresh check-room-need)
+	(retract ?after)
+	(retract ?checked-after)
+	(retract ?before)
+	(retract ?checked-before)
+	(retract ?adults)
+	(retract ?checked-adults)
+	(retract ?children)
+	
+	(retract ?checked-children)
+	(retract ?vehicle)
+	(retract ?checked-vehicle)
+	(retract ?animals)
+	(retract ?checked-animals)
+	(retract ?max-price)
+	(retract ?checked-max-price)
+	(retract ?cheapest-or-earliest)
+	(retract ?checked-cheapest-or-earliest)
+	(retract ?room-needed)
+	(retract ?checked-room-needed)
+	(refresh check-from)
+	(refresh check-to)
+	(refresh check-deparature-not-after)
+	(refresh check-deparature-not-before)
+	(refresh check-adults)
+	(refresh check-children)
+	(refresh check-vehicle-type)
+	(refresh check-animals)
+	(refresh check-cheapest-or-earliest)
+	(refresh check-max-price)
+	(refresh check-room-need)
     (refresh proceed-with-another-reservation)))
 
 (defrule all-checked "Assert that all characteristics were checked"
@@ -264,3 +314,13 @@
 		
 
 ;===== evaluation rules
+
+(defrule find-ferry
+	(all-checked)
+	(after ?after)
+	=>
+	(do-for-instance (?ferry ferry)
+		(> ?after ?fe)
+		(printout "Found a ferry from " ?ferry:from crlf)
+	)
+)
