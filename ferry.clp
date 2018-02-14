@@ -87,6 +87,20 @@
     (rooms 100)
   )
   (ferry
+    (type catamaran)
+    (from dover)
+    (to calais)
+    (departure-time 10)
+    (initial-price 5)
+    (animals-allowed yes)
+    (children-per-person 2)
+    (restaurant yes)
+    (cars 1)
+    (vans 20)
+    (trucks 20)
+    (rooms 100)
+  )
+  (ferry
     (type ferry)
     (from liverpool)
     (to dublin)
@@ -180,9 +194,9 @@
 		(assert (animals no)))
     (assert (checked animals)))
 
-(defrule check-max-price "Maximum price"
+(defrule check-max-price "Maximum initial price"
     =>
-    (bind ?response (ask-question-number-ans "Maximum price? (between 1 and 10000. Type 0 if it does not matter)"))
+    (bind ?response (ask-question-number-ans "Maximum initial price? (between 1 and 10000. Type 0 if it does not matter)"))
     (if (and (>= ?response 1) (<= ?response 10000)) 
       then (assert (max-price ?response)))
     (assert (checked max-price)))
@@ -324,26 +338,89 @@
    (< (fact-slot-value ?fact1 departure-time) (fact-slot-value ?fact2 departure-time))
 )
 
-(deffunction find-earliest-after (?template ?after ?predicate)
+(deffunction cheapest-predicate(?fact1 ?fact2)
+   (< (fact-slot-value ?fact1 initial-price) (fact-slot-value ?fact2 initial-price))
+)
+
+(deffunction execute-find(?template ?from ?to ?max-price ?cars ?vans ?trucks ?after ?predicate)
    (bind ?min FALSE)
-   (do-for-all-facts ((?f ?template)) (>= ?f:departure-time ?after)
-      (if (or (not ?min) (funcall ?predicate ?f ?min))
-         then
-         (bind ?min ?f)))
+   (do-for-all-facts ((?f ?template)) 
+		(and
+			(eq ?f:from ?from)
+			(eq ?f:to ?to)
+			(<= ?f:initial-price ?max-price)
+			(>= ?f:departure-time ?after)
+			(>= ?f:cars ?cars)
+			(>= ?f:vans ?vans)
+			(>= ?f:trucks ?trucks)
+		)
+		(if (or (not ?min) (funcall ?predicate ?f ?min)) 
+			then (bind ?min ?f))
+	)
    (return ?min)
+)
+
+;; TODO do it by using facts only, not if statements
+(deffunction calculate-price(?initial-price ?cars ?vans ?trucks ?rooms ?children ?pets)
+	(bind ?result ?initial-price)
+	(if (eq ?cars 1) then (bind ?result (+ ?result 20)))
+	(if (eq ?vans 1) then (bind ?result (+ ?result 50)))
+	(if (eq ?trucks 1) then (bind ?result (+ ?result 70)))
+	(if (eq ?rooms 1) then (bind ?result (+ ?result 30)))
+	(if (> ?children 0) then (bind ?result (+ ?result (* ?children 15))))
+	(if (> ?pets 0) then (bind ?result (+ ?result (* ?pets 5))))
+	(return ?result)
 )
  
 (defrule find-ferry
 	(declare (salience -1))
 	(all-checked)
+	(from ?from)
+	(to ?to)
 	(after ?after)
+	(max-price ?max-price)
+	(c-o-r ?c-o-r)
+	(vehicle ?vehicle)
+	(children ?children)
+	(room-needed ?room-needed)
+	(animals ?animals)
 	=>
-	(printout t "Searching for after:" ?after ":00" crlf)
 	(bind ?result nil)
+	(bind ?cars 0)
+	(bind ?vans 0)
+	(bind ?trucks 0)
+	(bind ?rooms 0)
+	(bind ?pets 0)
+	(if (eq ?vehicle car) then (bind ?cars 1))
+	(if (eq ?vehicle vans) then (bind ?vans 1))
+	(if (eq ?vehicle truck) then (bind ?trucks 1))
+	(if (eq ?room-needed yes) then (bind ?rooms 1))
+	(if (eq ?animals yes) then (bind ?pets 1))
 	(do-for-all-facts ((?f ferry))
-		;(>= ?f:departure-time ?after)
 		TRUE
-		(bind ?result (find-earliest-after ferry ?after earliest-predicate))
+		(if (eq ?c-o-r earliest) then 
+			(bind ?result (execute-find ferry ?from ?to ?max-price ?cars ?vans ?trucks ?after earliest-predicate))
+		else 
+			(bind ?result (execute-find ferry ?from ?to ?max-price ?cars ?vans ?trucks ?after cheapest-predicate))
+		)
 	)
-	(if ?result then (printout t "Found result: " (fact-slot-value ?result departure-time) ":00" crlf))
+	(if ?result then 
+		(printout t "We have booked a ferry for you. Here are the details:" crlf)
+		(printout t "From: " (fact-slot-value ?result from) crlf)
+		(printout t "To: " (fact-slot-value ?result to) crlf)
+		(printout t "Departure time: " (fact-slot-value ?result departure-time) ":00" crlf)
+		(printout t "Price (in euros): " (calculate-price (fact-slot-value ?result initial-price) ?cars ?vans ?trucks ?rooms ?children ?pets)  ".00" crlf)
+		(printout t "See you on board!" crlf)
+		(if (eq ?cars 1) then
+			(modify ?result (cars (- (fact-slot-value ?result cars) 1)))
+		)
+		(if (eq ?vans 1) then
+			(modify ?result (vans (- (fact-slot-value ?result vans) 1)))
+		)
+		(if (eq ?trucks 1) then
+			(modify ?result (trucks (- (fact-slot-value ?result trucks) 1)))
+		)
+	else
+		(printout t "No ferry was found that matches your searching criteria..." crlf))
+	(printout t "-----------------------------------------------" crlf)
 )
